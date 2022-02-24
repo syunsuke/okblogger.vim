@@ -78,10 +78,20 @@ function! metarw#okblogger#read(fakepath)
                                \ g:okblogger_blogid)))
 
     for post in s:posts_data['items']
+
+      let pre_string = ""
+      if post.status == "LIVE"
+        let pre_string = "(公開) "
+        let status_mark = "L:"
+      else
+        let pre_string = "(下書) "
+        let status_mark = "D:"
+      endif
+
       let s:browse 
         \ = add(s:browse, 
-            \ {'label'    : post['title'],
-            \  'fakepath' : 'okblogger:' .. post['id']})
+            \ {'label'    : pre_string .. post['title'],
+            \  'fakepath' : 'okblogger:' .. status_mark .. post['id']})
     endfor
 
     return ['browse', s:browse]
@@ -93,22 +103,34 @@ function! metarw#okblogger#read(fakepath)
   "     pythonのshowを呼ぶ
   """"""""""""""""""""""""""""""""""""""""""
   elseif _.method == 'file'
+
     setfiletype html
 
-    let s:post_data 
+    if _.status ==# "L"
+      let py_method = '"show"'
+    else
+      let py_method = '"showdraft"'
+    endif
+
+    "put =_.status
+    "put =_.postid
+    let post_data
           \ = webapi#json#decode(
-                \ system(printf('%s %s %s "show" %s %s',
+                \ system(printf('%s %s %s %s %s %s',
                                \ s:okblogger_py_command,
                                \ g:okblogger_googleapi_secretfile,
                                \ s:token_file,
+                               \ py_method,
                                \ g:okblogger_blogid,
                                \ _.postid)))
 
-    let s:content = s:post_data['content']
+    "let content = post_data['content']
     " TODO
     " データをバッファにどう展開するかを考える
     " タイトルやタグ、公開or書きかけ
-    put =s:content
+    "put =content
+
+    call s:drawpost(post_data, _.status)
 
     return ['done','' ] 
 
@@ -122,6 +144,24 @@ function! metarw#okblogger#read(fakepath)
 
 
 endfunction
+
+
+""""""""""""""""""""""""""""""""""""""""""
+" make post content buffer
+""""""""""""""""""""""""""""""""""""""""""
+function s:drawpost(post_data, status)
+
+    let propdata = {}
+    let content = a:post_data['content']
+    let propdata['title'] = a:post_data['title']
+    let propdata['status'] = a:status
+
+    let content = join(okdata#set(propdata),"\n") .. "\n" .. content
+
+    put =content
+
+endfunction
+
 
 
 """"""""""""""""""""""""""""""""""""""""""
@@ -141,19 +181,38 @@ function! metarw#okblogger#write(fakepath, line1, line2, append_p)
   elseif _.method == 'file'
 
     let s:buffer_contents
-      \ = join(getline(1, line("$")),"\n")
+      \ = join(getline(okdata#find() + 1, line("$")),"\n")
 
     let s:shell_escaped_contents 
       \ = substitute(s:buffer_contents, '"', '\\"', "g")
 
+    if _.status ==# "L"
+      let py_method = 'update'
+      let status = "L"
+    else
+      let py_method = '"updatedraft"'
+      let status = "D"
+    endif
+
+    let prop = okdata#get()
+    let title = substitute(prop.title, '"', '\\"', "g")
+
+    if prop.status ==# "L"
+      let status = "L"
+    elseif prop.status ==# "D"
+      let status = "D"
+    endif
+
     let s:post_res
-      \ = system(printf('%s %s %s "update" %s %s "%s"',
+      \ = system(printf('%s %s %s %s %s %s "%s" "%s"',
                                \ s:okblogger_py_command,
                                \ g:okblogger_googleapi_secretfile,
                                \ s:token_file,
+                               \ py_method,
                                \ g:okblogger_blogid,
                                \ _.postid,
-                               \ s:shell_escaped_contents))
+                               \ title,
+                               \ status),s:buffer_contents)
 
     echo s:post_res
 
@@ -208,7 +267,8 @@ function! s:parse_incomplete_fakepath(incomplete_fakepath)
   
   else
     let _.method = 'file'
-    let _.postid = fragments[1]
+    let _.status = fragments[1]
+    let _.postid = fragments[2]
   endif
 
   return _
