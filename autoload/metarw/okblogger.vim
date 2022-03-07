@@ -1,46 +1,53 @@
+"/////////////////////////////////////////////////
+"
+" 変数関係
+"
+"/////////////////////////////////////////////////
+"
 """"""""""""""""""""""""""""""""""""""""""
-" id/pass file path for google api
-" g:okblogger_googleapi_secretfile
+" google api id/secret file path
 """"""""""""""""""""""""""""""""""""""""""
 if !exists('g:okblogger_googleapi_secretfile')
   let g:okblogger_googleapi_secretfile
      \ = printf('%s/client_secrets.json', expand('<sfile>:p:h'))
-
 endif
+
 
 """"""""""""""""""""""""""""""""""""""""""
 " target bologger's ID
-" g:okblogger_blogid
-" for my test blog
-" let g:okblogger_blogid = "174466310393865378"
 """"""""""""""""""""""""""""""""""""""""""
-if !exists('g:okblogger_blogid')
-  echo "you need to set 'g:okblogger_blogid'"
+"let g:okblogger_blogids =
+"      \ {"test01":"174466310393865378"}
+
+if !exists('g:okblogger_blogids')
+  echo "you need to set 'g:okblogger_blogids'"
   finish
 endif
 
+
 """"""""""""""""""""""""""""""""""""""""""
-" to set python path
-" g:okblogger_python_path
+" python path
 """"""""""""""""""""""""""""""""""""""""""
-if !exists('s:okblogger_python_path')
+if !exists('g:okblogger_python_path')
   let g:okblogger_python_path = '/usr/bin/python'
 endif
-
-let s:okblogger_py_command = printf('%s %s/okblogger.py', 
-                                \ g:okblogger_python_path, 
+let s:okblogger_py_command = printf('%s %s/okblogger.py',
+                                \ g:okblogger_python_path,
                                 \ expand('<sfile>:p:h'))
 
 """"""""""""""""""""""""""""""""""""""""""
-" store file for google api token 
+" okblogger.vim path
 """"""""""""""""""""""""""""""""""""""""""
-let s:token_file 
-  \ = printf('%s/token.pickle', expand('<sfile>:p:h'))
+let s:basepath = expand('<sfile>:p:h')
+
+"/////////////////////////////////////////////////
+"
+" metarw main function
+"
+"/////////////////////////////////////////////////
 
 """"""""""""""""""""""""""""""""""""""""""
-" complete
-"
-" not yet
+" complete (not yet)
 """"""""""""""""""""""""""""""""""""""""""
 function! metarw#okblogger#complete(arglead, cmdline, cursorpos)
   " a:arglead always contains "okblogger:".
@@ -48,229 +55,273 @@ function! metarw#okblogger#complete(arglead, cmdline, cursorpos)
   return []
 endfunction
 
+
 """"""""""""""""""""""""""""""""""""""""""
-" metarw's read function
-"
-" when :e is call
-"  (1) if arg is list, show post list
-"  (2) if arg is number as postid, 
-"         show contents of the post
+" read
 """"""""""""""""""""""""""""""""""""""""""
 function! metarw#okblogger#read(fakepath)
 
-  let _ = s:parse_incomplete_fakepath(a:fakepath)
+  let fakepath_obj = s:parse_incomplete_fakepath(a:fakepath)
 
-  """"""""""""""""""""""""""""""""""""""""""
-  " (1) list
-  "     投稿の一覧を表示する
-  "     pythonのlistを呼ぶ
-  """"""""""""""""""""""""""""""""""""""""""
-  if _.method == 'list'
+  " blogのリスト
+  if fakepath_obj.method == 'list_blogger'
+    return s:bloggerlist()
 
-    let s:browse = []
+  " 投稿のリスト
+  elseif fakepath_obj.method == 'list_post'
+    return s:postlist(fakepath_obj.blogid)
 
-    let s:posts_data 
-          \ = webapi#json#decode(
-                \ system(printf('%s %s %s "list" %s',
-                               \ s:okblogger_py_command,
-                               \ g:okblogger_googleapi_secretfile,
-                               \ s:token_file,
-                               \ g:okblogger_blogid)))
+  " 投稿の読み込み
+  elseif fakepath_obj.method == 'file'
+    call s:loadpost(fakepath_obj.blogid, fakepath_obj.postid)
+    return ['done', '']
 
-    for post in s:posts_data['items']
-
-      let pre_string = ""
-      if post.status == "LIVE"
-        let pre_string = "(公開) "
-        let status_mark = "L:"
-      else
-        let pre_string = "(下書) "
-        let status_mark = "D:"
-      endif
-
-      let s:browse 
-        \ = add(s:browse, 
-            \ {'label'    : pre_string .. post['title'],
-            \  'fakepath' : 'okblogger:' .. status_mark .. post['id']})
-    endfor
-
-    return ['browse', s:browse]
-
-    
-  """"""""""""""""""""""""""""""""""""""""""
-  " (2) file
-  "     postを一つ読み込み
-  "     pythonのshowを呼ぶ
-  """"""""""""""""""""""""""""""""""""""""""
-  elseif _.method == 'file'
-
-    setfiletype html
-
-    if _.status ==# "L"
-      let py_method = '"show"'
-    else
-      let py_method = '"showdraft"'
-    endif
-
-    "put =_.status
-    "put =_.postid
-    let post_data
-          \ = webapi#json#decode(
-                \ system(printf('%s %s %s %s %s %s',
-                               \ s:okblogger_py_command,
-                               \ g:okblogger_googleapi_secretfile,
-                               \ s:token_file,
-                               \ py_method,
-                               \ g:okblogger_blogid,
-                               \ _.postid)))
-
-    "let content = post_data['content']
-    " TODO
-    " データをバッファにどう展開するかを考える
-    " タイトルやタグ、公開or書きかけ
-    "put =content
-
-    call s:drawpost(post_data, _.status)
-
-    return ['done','' ] 
-
-  """"""""""""""""""""""""""""""""""""""""""
-  " (X) ない場合のエラー処理
-  """"""""""""""""""""""""""""""""""""""""""
   else
-    " TODO: Detail information on error
-    return ['error', '???']
+    return ['error', 'unknown method']
   endif
 
-
 endfunction
 
 
 """"""""""""""""""""""""""""""""""""""""""
-" make post content buffer
-""""""""""""""""""""""""""""""""""""""""""
-function s:drawpost(post_data, status)
-
-    let propdata = {}
-    let content = a:post_data['content']
-    let propdata['title'] = a:post_data['title']
-    let propdata['status'] = a:status
-
-    let content = join(okdata#set(propdata),"\n") .. "\n" .. content
-
-    put =content
-
-endfunction
-
-
-
-""""""""""""""""""""""""""""""""""""""""""
-" metarw's write function
-" when :w is call
-"  (1) if arg is creat, make a new post
-"  (2) if arg is number as postid, 
-"         update contents of the post
+" write
 """"""""""""""""""""""""""""""""""""""""""
 function! metarw#okblogger#write(fakepath, line1, line2, append_p)
 
-  let _ = s:parse_incomplete_fakepath(a:fakepath)
+  let fakepath_obj = s:parse_incomplete_fakepath(a:fakepath)
 
-  if _.method == 'creat'
-    echo 'create'
-
-  elseif _.method == 'file'
-
-    let s:buffer_contents
-      \ = join(getline(okdata#find() + 1, line("$")),"\n")
-
-    let s:shell_escaped_contents 
-      \ = substitute(s:buffer_contents, '"', '\\"', "g")
-
-    if _.status ==# "L"
-      let py_method = 'update'
-      let status = "L"
-    else
-      let py_method = '"updatedraft"'
-      let status = "D"
-    endif
-
-    let prop = okdata#get()
-    let title = substitute(prop.title, '"', '\\"', "g")
-
-    if prop.status ==# "L"
-      let status = "L"
-    elseif prop.status ==# "D"
-      let status = "D"
-    endif
-
-    let s:post_res
-      \ = system(printf('%s %s %s %s %s %s "%s" "%s"',
-                               \ s:okblogger_py_command,
-                               \ g:okblogger_googleapi_secretfile,
-                               \ s:token_file,
-                               \ py_method,
-                               \ g:okblogger_blogid,
-                               \ _.postid,
-                               \ title,
-                               \ status),s:buffer_contents)
-
-    echo s:post_res
+  if fakepath_obj.method == 'file'
+    call s:updatepost(fakepath_obj.blogid, fakepath_obj.postid)
+    return ['done', '']
 
   else
-    " TODO: Detail information on error
-    return ['error', '???']
+    return ['error', 'invalid method']
   endif
+
 endfunction
 
-""""""""""""""""""""""""""""""""""""""""""
-" function of dealing with fakepath
-" Return value '_' has the following items:
+
+
+"/////////////////////////////////////////////////
 "
-" 引数は、:e okblogger:list のokblogger:list部分
-" これがincomplete_fakepathに渡されてくる
-" :e でも :w でもこのルーチンで解析
+" metarw sub utils
+"
+"/////////////////////////////////////////////////
+
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+" update_post
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+function! s:updatepost(blogid, postid)
+
+  let prop = okblogger#okdata#get()
+  let title = substitute(prop.title, '"', '\\"', "g")
+  let status = prop.status
+
+  let buffer_contents
+        \ = join(getline(okblogger#okdata#find() + 1, line("$")),"\n")
+
+  let content_data = { "title": title,
+        \ "status": status,
+        \ "content": buffer_contents}
+
+  call s:update_post_data( a:blogid,
+        \ a:postid,
+        \ content_data)
+endfunction
+
+
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+" make blog list
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+function! s:bloggerlist()
+
+    let anslist = []
+
+    for k in keys(g:okblogger_blogids)
+      let anslist
+        \ = add(anslist,
+            \ {'label'    : k,
+            \  'fakepath' : 'okblogger:' . g:okblogger_blogids[k]})
+    endfor
+
+  return ['browse', anslist]
+
+endfunction
+
+
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+" make post list
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+function! s:postlist(blogid)
+
+  let anslist = []
+  let posts_data = s:get_blog_data(a:blogid)
+
+  for post in posts_data['items']
+
+    let pre_string = ""
+    if post.status == "LIVE"
+      let pre_string = "[L] "
+    else
+      let pre_string = "[D] "
+    endif
+
+    let anslist
+          \ = add(anslist,
+          \ {'label'    : pre_string . post['title'],
+          \  'fakepath' : 'okblogger:' . a:blogid . ":" . post['id']})
+  endfor
+
+  return ['browse', anslist]
+
+endfunction
+
+
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+" load post to buffer
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+function! s:loadpost(blogid, postid)
+  let post_data = s:get_post_data(a:blogid, a:postid)
+
+  let b:okblogger_blogid = a:blogid
+
+  let propdata = {}
+  let content = post_data['content']
+  let propdata['title'] = post_data['title']
+  let propdata['status'] = post_data['status']
+
+  let content = join(okblogger#okdata#set(propdata),"\n") . "\n" . content
+
+  execute printf("%d,%ddelete", 1, line("$"))
+  put =content
+
+endfunction
+
+
+
+"/////////////////////////////////////////////////
+"
+" misc subroutine
+"
+"/////////////////////////////////////////////////
+
+
+
+"/////////////////////////////////////////////////
+"
+" parse metarw path
+"
+" pattern
+" scheme:bloggerId:postId
+"
+" return object is like below
 "
 " Key                 Value
 " ------------------  -----------------------------------------
 " given_fakepath      same as a:incomplete_fakepath
-" scheme              {scheme} part in a:incomplete_fakepath (always 'okblogger')
-" postid              'okblogger:{postid}' or nil
-" method              'create', 'list' or 'file'
-""""""""""""""""""""""""""""""""""""""""""
+" scheme              {scheme} okblogger
+" method              'list_blogger' 'list_post' 'file'
+" blogid
+" postid
+"
+"/////////////////////////////////////////////////
+
 function! s:parse_incomplete_fakepath(incomplete_fakepath)
+
   let _ = {}
-
-  let fragments = split(a:incomplete_fakepath, ':', !0)
-
-  if  len(fragments) <= 1
-    echoerr 'Unexpected a:incomplete_fakepath:' string(a:incomplete_fakepath)
-    throw 'metarw:okblogger#e1'
-  endif
+  let fragments = split(a:incomplete_fakepath, ':', 0)
 
   let _.given_fakepath = a:incomplete_fakepath
   let _.scheme = fragments[0]
 
-  if len(fragments) < 2
-    " error
-    " fragment[1]が、
-    "   createなら、新規作成メソッドcreate
-    "   listなら、post一覧メソッドlist
-    "   それ以外なら、個別postの読み込みとしてメソッドfile
-    "   postidをつける
+  if len (fragments) == 1
+    let _.method = 'list_blogger'
 
+  elseif len (fragments) == 2
+    let _.method = 'list_post'
+    let _.blogid = fragments[1]
 
-  elseif fragments[1] == 'create'
-    let _.method = 'create'
-  
-  elseif fragments[1] == 'list'
-    let _.method = 'list'
-  
   else
     let _.method = 'file'
-    let _.status = fragments[1]
+    let _.blogid = fragments[1]
     let _.postid = fragments[2]
+
   endif
 
   return _
 endfunction
+
+
+
+"/////////////////////////////////////////////////
+"
+" IO function
+" pythonライブラリを使用
+"
+"/////////////////////////////////////////////////
+
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+" get blog data
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+function! s:get_blog_data(blogid)
+
+  let cmd = printf('%s %s %s "list" %s',
+                  \ s:okblogger_py_command,
+                  \ g:okblogger_googleapi_secretfile,
+                  \ s:tokenpath(a:blogid),
+                  \ a:blogid)
+
+  return webapi#json#decode(system(cmd))
+
+endfunction
+
+
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+" get post data
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+function! s:get_post_data(blogid, postid)
+
+  let cmd = printf('%s %s %s "show" %s %s',
+                  \ s:okblogger_py_command,
+                  \ g:okblogger_googleapi_secretfile,
+                  \ s:tokenpath(a:blogid),
+                  \ a:blogid,
+                  \ a:postid)
+
+  return webapi#json#decode(system(cmd))
+
+endfunction
+
+
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+" update post
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+function! s:update_post_data(blogid, postid, dataobj)
+
+  let cmd =
+        \ printf('%s %s %s "update" %s %s "%s" "%s"',
+                  \ s:okblogger_py_command,
+                  \ g:okblogger_googleapi_secretfile,
+                  \ s:tokenpath(a:blogid),
+                  \ a:blogid,
+                  \ a:postid,
+                  \ a:dataobj['title'],
+                  \ a:dataobj['status'])
+
+  let post_res = system(cmd, a:dataobj['content'])
+  echo post_res
+
+endfunction
+
+
+
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+" token file utility
+"+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+function! s:tokenpath(blogid)
+  let token_file_path
+    \ = printf('%s/token%s.pickle', s:basepath, a:blogid)
+  return token_file_path
+endfunction
+
 

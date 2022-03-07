@@ -1,9 +1,9 @@
 """""""""""""""""""""""""""""""""""""""""""""""""""""""'
 " modify to html with range
 """""""""""""""""""""""""""""""""""""""""""""""""""""""'
-function! okbloggertool#tohtml(start, end)
+function! okblogger#oktool#tohtml(start, end)
 
-  " form start to end
+  " from start to end
   let buf_content = join(getline(a:start,a:end),"\n")
   let output = system('pandoc -f markdown -t html', buf_content)
 
@@ -11,9 +11,7 @@ function! okbloggertool#tohtml(start, end)
   " 変更部分を削除する
   execute printf("%d,%ddelete", a:start, a:end)
 
-  " putは指定の次の行にはいるので
-  " start -1で一つ前にする
-  call cursor(a:start-1,0)
+  call cursor(a:start - 1,0)
   put =output
 
 endfunction
@@ -22,8 +20,8 @@ endfunction
 " modify to html with all range
 " バッファ全体
 """""""""""""""""""""""""""""""""""""""""""""""""""""""'
-function! okbloggertool#tohtmlall()
-  call okbloggertool#tohtml(1, line("$"))
+function! okblogger#oktool#tohtmlall()
+  call okblogger#oktool#tohtml(1, line("$"))
 endfunction
 
 
@@ -31,21 +29,25 @@ endfunction
 " modify to html with okdata
 " okdata付きのバッファ
 """""""""""""""""""""""""""""""""""""""""""""""""""""""'
-function! okbloggertool#okdata_tohtml()
-  let content_start = okdata#find() + 1
-  call okbloggertool#tohtml(content_start, line("$"))
+function! okblogger#oktool#okdata_tohtml()
+  let content_start = okblogger#okdata#find() + 1
+  call okblogger#oktool#tohtml(content_start, line("$"))
 endfunction
+
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""'
 " open web browser
 """""""""""""""""""""""""""""""""""""""""""""""""""""""'
-function! okbloggertool#openbrowser()
-  if !exists(g:okbrowser)
-    let g:okbrowser = "google-chrome-stable"
+function! okblogger#oktool#openbrowser()
+
+  if !exists(g:okblogger_browser)
+    let g:okblogger_browser = "google-chrome-stable"
   endif
+
   let blogURL = "https://www.blogger.com/blog/posts/"
-            \ .. g:okblogger_blogid
-  call system(printf("%s %s > /dev/null 2>&1 &", g:okbrowser, blogURL))
+            \ . b:okblogger_blogid
+  call system(printf("%s %s > /dev/null 2>&1 &", g:okblogger_browser, blogURL))
+  echo blogURL
 endfunction
 
 
