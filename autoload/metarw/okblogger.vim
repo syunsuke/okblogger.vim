@@ -73,6 +73,7 @@ function! metarw#okblogger#read(fakepath)
 
   " 投稿の読み込み
   elseif fakepath_obj.method == 'file'
+    setfiletype html
     call s:loadpost(fakepath_obj.blogid, fakepath_obj.postid)
     return ['done', '']
 
@@ -91,7 +92,10 @@ function! metarw#okblogger#write(fakepath, line1, line2, append_p)
   let fakepath_obj = s:parse_incomplete_fakepath(a:fakepath)
 
   if fakepath_obj.method == 'file'
+
+    let cur_pos = getpos(".")
     call s:updatepost(fakepath_obj.blogid, fakepath_obj.postid)
+    call setpos(".", cur_pos)
     return ['done', '']
 
   else
@@ -127,6 +131,7 @@ function! s:updatepost(blogid, postid)
   call s:update_post_data( a:blogid,
         \ a:postid,
         \ content_data)
+
 endfunction
 
 
@@ -193,6 +198,7 @@ function! s:loadpost(blogid, postid)
   let content = join(okblogger#okdata#set(propdata),"\n") . "\n" . content
 
   execute printf("%d,%ddelete", 1, line("$"))
+
   put =content
 
 endfunction
