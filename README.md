@@ -7,22 +7,38 @@ vim-metarwを利用してbloggerを読み書きするプラグイン
 
 ## Requirements
 
-### 依存するvimプラグイン
+### 依存するvimプラグインとおbogger.vimのインストール
 
-vimのプラグインとして以下のものを準備
+okblogger.vimは、次のプラグインに依存しているので、
+インストールする時には、一緒にインストールする必要があります。
 
 - vim-metarw
 - webapi-vim
+
+
+例えば、プラグイン管理にVim-Plugを使っているならインストールは、次の様になります。
+```{vim}
+" add this line to your .vimrc file
+Plugin 'syunsuke/okblogger.vim'
+Plugin 'kana/vim-metarw'
+Plugin 'mattn/webapi-vim'
+```
 
 ### 依存するpythonモジュール
 
 bloggerのgoogle api制御にgoogleが公開しているpythonライブラリ
 「[Blogger APIs Client Library for Python](https://developers.google.com/blogger/docs/3.0/api-lib/python)」
 を使っています。
-pythonの環境と以下のpythonモジュールを準備しましょう。
 
-- google-api-python-client
+archlinuxの場合、公式リポジトリにある次のパッケージをインストールすればOKです。
 
+- python-google-api-core
+- python-google-auth-oauthlib
+
+
+```{shell}
+sudo pacman -S python-google-auth-oauthlib python-google-api-core
+```
 
 ### google apiのOAuth2.0手続き用のファイル
 
@@ -33,6 +49,7 @@ Google Cloude Platformから、自分のプロジェクトでblogger apiを利�
 そして、okblogger.vimアプリがアクセスするためのIDとシークレットを得て、
 更にそれらが書かれてjsonファイルをダウンロードしましょう。
 
+[https://console.cloud.google.com/](https://console.cloud.google.com/)
 
 
 ## okbloggerを使うための設定
@@ -63,7 +80,7 @@ ID,SECRETが書かれているjsonファイルのパスを設定します。
 ```vim
 " jsonファイルのパス
 let g:okblogger_googleapi_secretfile
-      \ = "/home/neko/.config/nvim/client_secrets.json"
+      \ = "/home/neko/.config/nvim/client_secret.json"
 ```
 
 
