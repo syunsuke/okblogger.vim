@@ -34,10 +34,10 @@ archlinuxの場合、公式リポジトリにある次のパッケージをイ�
 
 - python-google-api-core
 - python-google-auth-oauthlib
-
+- python-google-api-python-client
 
 ```{shell}
-sudo pacman -S python-google-auth-oauthlib python-google-api-core
+sudo pacman -S python-google-auth-oauthlib python-google-api-core python-google-api-python-client
 ```
 
 ### google apiのOAuth2.0手続き用のファイル
