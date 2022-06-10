@@ -7,7 +7,7 @@ vim-metarwを利用してbloggerを読み書きするプラグイン
 
 ## Requirements
 
-### 依存するvimプラグインとおbogger.vimのインストール
+### 依存するvimプラグインとokblogger.vimのインストール
 
 okblogger.vimは、次のプラグインに依存しているので、
 インストールする時には、一緒にインストールする必要があります。
